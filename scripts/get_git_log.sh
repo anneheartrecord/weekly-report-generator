@@ -19,10 +19,38 @@ if [[ ${#PROJECT_DIRS[@]} -eq 0 ]]; then
     exit 1
 fi
 
-# 获取本周一日期（兼容 macOS 和 Linux）
-MONDAY=$(date -v-monday +%Y-%m-%d 2>/dev/null || date -d "last monday" +%Y-%m-%d)
-# 获取下周一日期
-NEXT_MONDAY=$(date -v+7d -j -f "%Y-%m-%d" "$MONDAY" +%Y-%m-%d 2>/dev/null || date -d "$MONDAY + 7 days" +%Y-%m-%d)
+# 时间范围计算
+DATE_RANGE="${DATE_RANGE:-week}"
+
+case "$DATE_RANGE" in
+    week)
+        SINCE=$(date -v-monday +%Y-%m-%d 2>/dev/null || date -d "last monday" +%Y-%m-%d)
+        UNTIL=$(date -v+7d -j -f "%Y-%m-%d" "$SINCE" +%Y-%m-%d 2>/dev/null || date -d "$SINCE + 7 days" +%Y-%m-%d)
+        ;;
+    biweek)
+        THIS_MONDAY=$(date -v-monday +%Y-%m-%d 2>/dev/null || date -d "last monday" +%Y-%m-%d)
+        SINCE=$(date -v-7d -j -f "%Y-%m-%d" "$THIS_MONDAY" +%Y-%m-%d 2>/dev/null || date -d "$THIS_MONDAY - 7 days" +%Y-%m-%d)
+        UNTIL=$(date -v+7d -j -f "%Y-%m-%d" "$THIS_MONDAY" +%Y-%m-%d 2>/dev/null || date -d "$THIS_MONDAY + 7 days" +%Y-%m-%d)
+        ;;
+    month)
+        SINCE=$(date +%Y-%m-01)
+        NEXT_MONTH=$(date -v+1m -j -f "%Y-%m-%d" "$SINCE" +%Y-%m-01 2>/dev/null || date -d "$SINCE + 1 month" +%Y-%m-01)
+        UNTIL="$NEXT_MONTH"
+        ;;
+    *,*)
+        # 自定义格式: 2026-03-01,2026-03-21
+        SINCE="${DATE_RANGE%%,*}"
+        UNTIL="${DATE_RANGE##*,}"
+        ;;
+    *)
+        echo "ERROR: 不支持的 DATE_RANGE 值: $DATE_RANGE"
+        echo "支持: week, biweek, month, 或自定义 YYYY-MM-DD,YYYY-MM-DD"
+        exit 1
+        ;;
+esac
+
+echo "===DATE_RANGE: ${SINCE} ~ ${UNTIL}==="
+echo ""
 
 # 遍历每个项目输出日志
 for PROJECT_DIR in "${PROJECT_DIRS[@]}"; do
@@ -37,12 +65,12 @@ for PROJECT_DIR in "${PROJECT_DIRS[@]}"; do
     echo "===PROJECT: ${PROJECT_NAME}==="
 
     echo "===GIT_LOG_START==="
-    cd "$PROJECT_DIR" && git log --author="$GIT_AUTHOR" --since="$MONDAY" --until="$NEXT_MONDAY" --pretty=format:"%h|%ad|%s" --date=short --no-merges
+    cd "$PROJECT_DIR" && git log --author="$GIT_AUTHOR" --since="$SINCE" --until="$UNTIL" --pretty=format:"%h|%ad|%s" --date=short --no-merges
     echo ""
     echo "===GIT_LOG_END==="
 
     echo "===GIT_STAT_START==="
-    cd "$PROJECT_DIR" && git log --author="$GIT_AUTHOR" --since="$MONDAY" --until="$NEXT_MONDAY" --pretty=format:"========== %h %ad %s ==========" --date=short --no-merges --stat
+    cd "$PROJECT_DIR" && git log --author="$GIT_AUTHOR" --since="$SINCE" --until="$UNTIL" --pretty=format:"========== %h %ad %s ==========" --date=short --no-merges --stat
     echo ""
     echo "===GIT_STAT_END==="
 
